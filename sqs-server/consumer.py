@@ -63,6 +63,83 @@ class Consumer:
             order_data["order_value"] = calculated_order_value
         return True
 
+    def handle_userwise_stats(self, order_data: dict):
+        try:
+            user_id = order_data.get("user_id")
+            order_value = order_data.get("order_value", 0)
+            redis_key = f"user:{user_id}"
+
+            current_order_count = self.redis_client.hget(redis_key, "order_count")
+            current_total_spend = self.redis_client.hget(redis_key, "total_spend")
+
+            new_order_count = int(current_order_count) + 1 if current_order_count else 1
+            new_total_spend = (
+                float(current_total_spend) + float(order_value)
+                if current_total_spend
+                else float(order_value)
+            )
+
+            self.redis_client.hset(redis_key, "order_count", str(new_order_count))
+            self.redis_client.hset(
+                redis_key, "total_spend", str(round(new_total_spend, 2))
+            )
+
+            return True
+
+        except Exception as e:
+            write_log(f"[REDIS ERROR] Failed to update user stats: {e}")
+            return False
+
+    def handle_global_stats(self, order_data: dict):
+        try:
+            global_hash_key = "global:stats"
+            current_total_order_count = self.redis_client.hget(
+                global_hash_key, "total_orders"
+            )
+            current_total_spend = self.redis_client.hget(
+                global_hash_key, "total_revenue"
+            )
+
+            new_total_order_count = (
+                int(current_total_order_count) + 1 if current_total_order_count else 1
+            )
+            new_total_spend = (
+                float(current_total_spend) + float(order_data.get("order_value", 0))
+                if current_total_spend
+                else float(order_data.get("order_value", 0))
+            )
+
+            self.redis_client.hset(
+                global_hash_key, "total_orders", str(new_total_order_count)
+            )
+            self.redis_client.hset(
+                global_hash_key, "total_revenue", str(round(new_total_spend, 2))
+            )
+            return True
+        except Exception as e:
+            write_log(f"[REDIS ERROR] Failed to update global stats: {e}")
+            return False
+
+    def handle_redis_db_insertion(self, order_data: dict):
+        try:
+            userwise_stats_result = self.handle_userwise_stats(order_data)
+            if not userwise_stats_result:
+                write_log(
+                    f"[REDIS ERROR] Failed to update user stats for user {order_data.get('user_id')}"
+                )
+                return False
+
+            global_stats_result = self.handle_global_stats(order_data)
+            if not global_stats_result:
+                write_log("[REDIS ERROR] Failed to update global stats")
+                return False
+
+            return True
+
+        except Exception as e:
+            write_log(f"[REDIS ERROR] Failed to update Redis DB: {e}")
+            return False
+
     def handle_message(self, messages: list):
         for message in messages:
             try:
@@ -70,10 +147,17 @@ class Consumer:
                 log_msg = f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Received"
                 write_log(log_msg)
 
-                result = self.validate_order_data(order_data)
-                if not result:
+                validation_result = self.validate_order_data(order_data)
+                if not validation_result:
                     write_log(
                         f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Validation failed, skipping order"
+                    )
+                    continue
+
+                redis_result = self.handle_redis_db_insertion(order_data)
+                if not redis_result:
+                    write_log(
+                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Redis insertion failed, skipping order"
                     )
                     continue
 
@@ -90,20 +174,12 @@ class Consumer:
                 write_log(f"[ERROR] Error processing message: {e}")
 
     def start(self):
-        write_log("[INFO] Checking for SQS client connection...")
         if not self.sqs:
             self.sqs = self.get_sqs_client()
-        write_log("[INFO] SQS client connection established")
-        write_log("[INFO] Checking for queue URL...")
         if not self.queue_url:
             self.queue_url = self.get_queue_url()
-        write_log(f"[INFO] Queue URL obtained: {self.queue_url}")
-        write_log("[INFO] Checking for Redis client connection...")
         if not self.redis_client:
             self.redis_client = self.get_redis_client()
-        write_log("[INFO] Redis client connection established")
-
-        write_log("[INFO] Consumer started receiving messages...")
 
         while True:
             try:
