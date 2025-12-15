@@ -1,0 +1,5 @@
+fastapi[standard]
+uvicorn
+redis
+boto3
+python-dotenv
