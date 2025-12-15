@@ -24,8 +24,18 @@ class Producer:
             raise Exception(f"Failed to get queue URL: {e}")
 
     def generate_random_order(self):
+        should_generate_invalid = randint(1, 100) <= 20
+
         order_id = f"ORD{randint(1000, 9999)}"
         user_id = f"U{randint(1000, 1005)}"
+
+        if should_generate_invalid:
+            invalid_type = randint(1, 4)
+            if invalid_type == 1:
+                order_id = f"INVALID{randint(1000, 9999)}"
+            elif invalid_type == 2:
+                user_id = f"INVALID{randint(1000, 1005)}"
+
         products = [
             {"id": "P001", "name": "Laptop", "price": (500, 1500)},
             {"id": "P002", "name": "Mouse", "price": (10, 50)},
@@ -62,11 +72,20 @@ class Producer:
 
         payment_methods = ["CreditCard", "DebitCard", "PayPal", "BankTransfer", "UPI"]
 
+        final_order_value = round(total_value, 2)
+
+        if should_generate_invalid:
+            invalid_type = randint(1, 4)
+            if invalid_type == 3:
+                final_order_value = 0
+            elif invalid_type == 4:
+                final_order_value = round(total_value * uniform(0.5, 1.5), 2)
+
         return {
             "order_id": order_id,
             "user_id": user_id,
             "order_timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "order_value": round(total_value, 2),
+            "order_value": final_order_value,
             "items": items,
             "shipping_address": choice(addresses),
             "payment_method": choice(payment_methods),
@@ -82,6 +101,8 @@ class Producer:
             sent_orders.append(
                 {
                     "order_id": order["order_id"],
+                    "user_id": order["user_id"],
+                    "order_value": order["order_value"],
                     "message_id": response["MessageId"],
                 }
             )
