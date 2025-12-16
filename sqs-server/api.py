@@ -118,7 +118,7 @@ async def get_user_ranking(limit: int = 10):
         return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
 
 
-@api_router.get("/users/{user_id}")
+@api_router.get("/users/{user_id}/stats")
 async def get_user_stats(user_id: str):
     try:
         redis_client = consumer.get_redis_client()
@@ -130,50 +130,36 @@ async def get_user_stats(user_id: str):
                 content={"status": 404, "error": f"User {user_id} not found"},
             )
 
-        order_count = user_stats.get(b"order_count") or user_stats.get("order_count")
-        total_spend = user_stats.get(b"total_spend") or user_stats.get("total_spend")
-
-        if isinstance(order_count, bytes):
-            order_count = order_count.decode("utf-8")
-        if isinstance(total_spend, bytes):
-            total_spend = total_spend.decode("utf-8")
+        order_count = user_stats.get(b"order_count")
+        total_spend = user_stats.get(b"total_spend")
 
         return JSONResponse(
             status_code=200,
             content={
                 "user_id": user_id,
-                "order_count": int(order_count) if order_count else 0,
-                "total_spend": float(total_spend) if total_spend else 0.0,
+                "order_count": int(order_count),
+                "total_spend": float(total_spend),
             },
         )
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
 
 
-@api_router.get("/global_stats")
+@api_router.get("/stats/global")
 async def get_global_stats():
     try:
         redis_client = consumer.get_redis_client()
         global_stats = redis_client.hgetall("global:stats")
 
-        total_orders = global_stats.get(b"total_orders") or global_stats.get(
-            "total_orders"
-        )
-        total_revenue = global_stats.get(b"total_revenue") or global_stats.get(
-            "total_revenue"
-        )
-
-        if isinstance(total_orders, bytes):
-            total_orders = total_orders.decode("utf-8")
-        if isinstance(total_revenue, bytes):
-            total_revenue = total_revenue.decode("utf-8")
+        total_orders = global_stats.get(b"total_orders")
+        total_revenue = global_stats.get(b"total_revenue")
 
         return JSONResponse(
             status_code=200,
             content={
                 "status": 200,
-                "total_orders": int(total_orders) if total_orders else 0,
-                "total_revenue": float(total_revenue) if total_revenue else 0.0,
+                "total_orders": int(total_orders),
+                "total_revenue": float(total_revenue),
             },
         )
     except Exception as e:
