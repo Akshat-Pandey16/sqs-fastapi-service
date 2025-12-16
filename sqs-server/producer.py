@@ -1,7 +1,8 @@
 import json
-import boto3
 from datetime import datetime
-from random import randint, choice, uniform
+from random import choice, randint, uniform
+
+import boto3
 from config import config
 
 

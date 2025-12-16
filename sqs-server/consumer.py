@@ -1,8 +1,9 @@
 import json
 import time
+
 import boto3
-from logger import write_log
 from config import config
+from logger import write_log
 from redis import Redis
 
 
@@ -74,6 +75,9 @@ class Consumer:
 
             self.redis_client.hincrby(redis_key, "order_count", 1)
             self.redis_client.hincrbyfloat(redis_key, "total_spend", order_value)
+
+            self.redis_client.zincrby("user_leader:total_spend", order_value, user_id)
+            self.redis_client.zincrby("user_leader:total_order_count", 1, user_id)
 
             return True
 

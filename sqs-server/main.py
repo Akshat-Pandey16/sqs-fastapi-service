@@ -1,11 +1,12 @@
+from contextlib import asynccontextmanager
 from multiprocessing import Process
 from typing import Optional
-from fastapi import FastAPI
-from consumer import consumer
-from logger import clear_logs
+
 import uvicorn
-from contextlib import asynccontextmanager
 from api import api_router
+from consumer import consumer
+from fastapi import FastAPI
+from logger import clear_logs
 
 consumer_process: Optional[Process] = None
 
