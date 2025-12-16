@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from logger import read_last_n_logs
 from producer import producer
-from schema import LeaderStats, ProduceRequest
+from schema import ProduceRequest
 
 api_router = APIRouter(tags=["API"])
 
@@ -89,14 +89,14 @@ async def get_user_ranking(limit: int = 10):
         )
 
         by_spend = []
-        for idx, (user_id, score) in enumerate(spend_results):
+        for idx, (user_id, score) in enumerate(spend_results, start=1):
             user_id = user_id.decode("utf-8")
             by_spend.append(
                 {"position": idx, "user_id": user_id, "total_spend": round(score, 2)}
             )
 
         by_orders = []
-        for idx, (user_id, score) in enumerate(orders_results):
+        for idx, (user_id, score) in enumerate(orders_results, start=1):
             user_id = user_id.decode("utf-8")
             by_orders.append(
                 {"position": idx, "user_id": user_id, "total_order_count": int(score)}
@@ -106,8 +106,8 @@ async def get_user_ranking(limit: int = 10):
             status_code=200,
             content={
                 "status": 200,
-                "by_total_spend": by_spend,
-                "by_total_order_count": by_orders,
+                "total_spend_ranking": by_spend,
+                "total_order_count_ranking": by_orders,
             },
         )
     except Exception as e:

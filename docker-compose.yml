@@ -19,10 +19,5 @@ services:
   #   ports:
   #     - "8000:8000"
   #   depends_on:
-  #     - redis
-  # worker:
-  #   build: ./worker
-  #   container_name: sqs-worker
-  #   depends_on:
   #     - localstack
   #     - redis
