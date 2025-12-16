@@ -76,7 +76,45 @@ async def clear_redis_db():
         )
 
 
-@api_router.get("/user/{user_id}")
+@api_router.get("/users")
+async def get_user_ranking(limit: int = 10):
+    try:
+        redis_client = consumer.get_redis_client()
+
+        spend_results = redis_client.zrevrange(
+            "user_leader:total_spend", 0, limit - 1, withscores=True
+        )
+        orders_results = redis_client.zrevrange(
+            "user_leader:total_order_count", 0, limit - 1, withscores=True
+        )
+
+        by_spend = []
+        for idx, (user_id, score) in enumerate(spend_results):
+            user_id = user_id.decode("utf-8")
+            by_spend.append(
+                {"position": idx, "user_id": user_id, "total_spend": round(score, 2)}
+            )
+
+        by_orders = []
+        for idx, (user_id, score) in enumerate(orders_results):
+            user_id = user_id.decode("utf-8")
+            by_orders.append(
+                {"position": idx, "user_id": user_id, "total_order_count": int(score)}
+            )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "by_total_spend": by_spend,
+                "by_total_order_count": by_orders,
+            },
+        )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+
+
+@api_router.get("/users/{user_id}")
 async def get_user_stats(user_id: str):
     try:
         redis_client = consumer.get_redis_client()
@@ -133,45 +171,6 @@ async def get_global_stats():
                 "status": 200,
                 "total_orders": int(total_orders) if total_orders else 0,
                 "total_revenue": float(total_revenue) if total_revenue else 0.0,
-            },
-        )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
-
-
-@api_router.post("/user_rankings")
-async def get_user_ranking(leader_stats: LeaderStats):
-    try:
-        redis_client = consumer.get_redis_client()
-        limit = leader_stats.limit
-
-        spend_results = redis_client.zrevrange(
-            "user_leader:total_spend", 0, limit - 1, withscores=True
-        )
-        orders_results = redis_client.zrevrange(
-            "user_leader:total_order_count", 0, limit - 1, withscores=True
-        )
-
-        by_spend = []
-        for idx, (user_id, score) in enumerate(spend_results):
-            user_id = user_id.decode("utf-8")
-            by_spend.append(
-                {"position": idx, "user_id": user_id, "total_spend": round(score, 2)}
-            )
-
-        by_orders = []
-        for idx, (user_id, score) in enumerate(orders_results):
-            user_id = user_id.decode("utf-8")
-            by_orders.append(
-                {"position": idx, "user_id": user_id, "total_order_count": int(score)}
-            )
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": 200,
-                "by_total_spend": by_spend,
-                "by_total_order_count": by_orders,
             },
         )
     except Exception as e:
