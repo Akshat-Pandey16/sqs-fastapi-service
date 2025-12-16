@@ -7,6 +7,7 @@ from api import api_router
 from consumer import consumer
 from fastapi import FastAPI
 from logger import clear_logs
+from config import config
 
 consumer_process: Optional[Process] = None
 
@@ -29,4 +30,4 @@ app = FastAPI(title="SQS Order Management API", version="1.0.0", lifespan=lifesp
 app.include_router(api_router)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=config.FASTAPI_PORT)

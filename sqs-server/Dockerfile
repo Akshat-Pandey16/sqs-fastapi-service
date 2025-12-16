@@ -6,8 +6,6 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY sqs-server/ .
-
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
