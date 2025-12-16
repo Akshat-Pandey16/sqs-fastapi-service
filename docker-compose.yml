@@ -8,16 +8,34 @@ services:
       - SERVICES=sqs
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
+  
   redis:
     image: redis:latest
     container_name: redis
     ports:
       - "6379:6379"
-  # web:
-  #   build: ./web
-  #   container_name: fastapi-web
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - localstack
-  #     - redis
+  
+  sqs-server:
+    build:
+      context: .
+      dockerfile: sqs-server/Dockerfile
+    container_name: sqs-server
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_REGION=ap-south-1
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=qyrus-assignment
+      - AWS_SECRET_ACCESS_KEY=qyrus-assignment
+      - SQS_QUEUE_NAME=orders-queue
+      - SQS_MAX_NUMBER_OF_MESSAGES=10
+      - SQS_WAIT_TIME_SECONDS=5
+      - SQS_VISIBILITY_TIMEOUT=30
+      - SQS_MESSAGE_PROCESSING_DELAY=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    depends_on:
+      - localstack
+      - redis
+    restart: unless-stopped
