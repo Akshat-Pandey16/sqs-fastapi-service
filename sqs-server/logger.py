@@ -3,7 +3,6 @@ from datetime import datetime
 from pathlib import Path
 
 LOG_FILE = Path("consumer_logs.jsonl")
-Path("").mkdir(exist_ok=True)
 
 
 def write_log(message: str):

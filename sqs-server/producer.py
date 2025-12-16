@@ -14,9 +14,9 @@ class Producer:
             aws_access_key_id=config.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=config.AWS_SECRET_ACCESS_KEY,
         )
-        self.queue_url = self._get_queue_url()
+        self.queue_url = self.get_queue_url()
 
-    def _get_queue_url(self):
+    def get_queue_url(self):
         try:
             response = self.sqs.create_queue(QueueName=config.SQS_QUEUE_NAME)
             return response["QueueUrl"]

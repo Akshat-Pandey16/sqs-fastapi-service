@@ -23,8 +23,11 @@ class Consumer:
         return self.sqs
 
     def get_queue_url(self):
-        response = self.sqs.get_queue_url(QueueName=config.SQS_QUEUE_NAME)
-        return response["QueueUrl"]
+        try:
+            response = self.sqs.create_queue(QueueName=config.SQS_QUEUE_NAME)
+            return response["QueueUrl"]
+        except Exception as e:
+            raise Exception(f"Failed to get queue URL: {e}")
 
     def get_redis_client(self):
         self.redis_client = Redis(
@@ -66,23 +69,11 @@ class Consumer:
     def handle_userwise_stats(self, order_data: dict):
         try:
             user_id = order_data.get("user_id")
-            order_value = order_data.get("order_value", 0)
+            order_value = round(float(order_data.get("order_value", 0)), 2)
             redis_key = f"user:{user_id}"
 
-            current_order_count = self.redis_client.hget(redis_key, "order_count")
-            current_total_spend = self.redis_client.hget(redis_key, "total_spend")
-
-            new_order_count = int(current_order_count) + 1 if current_order_count else 1
-            new_total_spend = (
-                float(current_total_spend) + float(order_value)
-                if current_total_spend
-                else float(order_value)
-            )
-
-            self.redis_client.hset(redis_key, "order_count", str(new_order_count))
-            self.redis_client.hset(
-                redis_key, "total_spend", str(round(new_total_spend, 2))
-            )
+            self.redis_client.hincrby(redis_key, "order_count", 1)
+            self.redis_client.hincrbyfloat(redis_key, "total_spend", order_value)
 
             return True
 
@@ -93,28 +84,13 @@ class Consumer:
     def handle_global_stats(self, order_data: dict):
         try:
             global_hash_key = "global:stats"
-            current_total_order_count = self.redis_client.hget(
-                global_hash_key, "total_orders"
-            )
-            current_total_spend = self.redis_client.hget(
-                global_hash_key, "total_revenue"
+            order_value = round(float(order_data.get("order_value", 0)), 2)
+
+            self.redis_client.hincrby(global_hash_key, "total_orders", 1)
+            self.redis_client.hincrbyfloat(
+                global_hash_key, "total_revenue", order_value
             )
 
-            new_total_order_count = (
-                int(current_total_order_count) + 1 if current_total_order_count else 1
-            )
-            new_total_spend = (
-                float(current_total_spend) + float(order_data.get("order_value", 0))
-                if current_total_spend
-                else float(order_data.get("order_value", 0))
-            )
-
-            self.redis_client.hset(
-                global_hash_key, "total_orders", str(new_total_order_count)
-            )
-            self.redis_client.hset(
-                global_hash_key, "total_revenue", str(round(new_total_spend, 2))
-            )
             return True
         except Exception as e:
             write_log(f"[REDIS ERROR] Failed to update global stats: {e}")
@@ -150,14 +126,18 @@ class Consumer:
                 validation_result = self.validate_order_data(order_data)
                 if not validation_result:
                     write_log(
-                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Validation failed, skipping order"
+                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Validation failed, deleting invalid message"
+                    )
+                    self.sqs.delete_message(
+                        QueueUrl=self.queue_url,
+                        ReceiptHandle=message["ReceiptHandle"],
                     )
                     continue
 
                 redis_result = self.handle_redis_db_insertion(order_data)
                 if not redis_result:
                     write_log(
-                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Redis insertion failed, skipping order"
+                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Redis insertion failed, will retry"
                     )
                     continue
 
@@ -172,6 +152,10 @@ class Consumer:
 
             except (json.JSONDecodeError, KeyError) as e:
                 write_log(f"[ERROR] Error processing message: {e}")
+                self.sqs.delete_message(
+                    QueueUrl=self.queue_url,
+                    ReceiptHandle=message["ReceiptHandle"],
+                )
 
     def start(self):
         if not self.sqs:
