@@ -20,8 +20,9 @@ async def api_info():
                 "consumer_logs": "GET /consumer_logs - Get latest 100 consumer logs",
                 "delete_redis_db": "DELETE /delete_redis_db - Delete Redis database",
                 "users": "GET /users - Get user ranking",
-                "users/{user_id}": "GET /users/{user_id} - Get user stats",
-                "global_stats": "GET /global_stats - Get global stats",
+                "users/{user_id}/stats": "GET /users/{user_id}/stats - Get user stats",
+                "stats/global": "GET /stats/global - Get global stats",
+                "stats/monthly/{month}": "GET /stats/monthly/{month} - Get monthly stats (format: YYYY-MM)",
             },
         },
     )
@@ -29,12 +30,6 @@ async def api_info():
 
 @api_router.post("/produce")
 async def produce_orders(request: ProduceRequest):
-    if request.count < 1 or request.count > 100:
-        return JSONResponse(
-            status_code=400,
-            content={"status": 400, "error": "Count must be between 1 and 100"},
-        )
-
     try:
         sent_orders = producer.send_orders_to_queue(request.count)
         return JSONResponse(
@@ -132,13 +127,17 @@ async def get_user_stats(user_id: str):
 
         order_count = user_stats.get(b"order_count")
         total_spend = user_stats.get(b"total_spend")
+        failed_order_count = user_stats.get(b"failed_order_count")
 
         return JSONResponse(
             status_code=200,
             content={
                 "user_id": user_id,
-                "order_count": int(order_count),
-                "total_spend": float(total_spend),
+                "order_count": int(order_count) if order_count else 0,
+                "total_spend": float(total_spend) if total_spend else 0.0,
+                "failed_order_count": int(failed_order_count)
+                if failed_order_count
+                else 0,
             },
         )
     except Exception as e:
@@ -153,13 +152,72 @@ async def get_global_stats():
 
         total_orders = global_stats.get(b"total_orders")
         total_revenue = global_stats.get(b"total_revenue")
+        failed_orders = global_stats.get(b"failed_orders")
 
         return JSONResponse(
             status_code=200,
             content={
                 "status": 200,
-                "total_orders": int(total_orders),
-                "total_revenue": float(total_revenue),
+                "total_orders": int(total_orders) if total_orders else 0,
+                "total_revenue": float(total_revenue) if total_revenue else 0.0,
+                "failed_orders": int(failed_orders) if failed_orders else 0,
+            },
+        )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+
+
+@api_router.get("/stats/monthly/{month}")
+async def get_monthly_stats(month: str):
+    try:
+        redis_client = consumer.get_redis_client()
+
+        if not redis_client.sismember("months:list", month):
+            return JSONResponse(
+                status_code=404,
+                content={"status": 404, "error": f"No data found for month {month}"},
+            )
+
+        pattern = f"monthly:{month}:user:*"
+        user_keys = redis_client.keys(pattern)
+
+        user_stats = []
+        total_orders = 0
+        total_revenue = 0.0
+        total_failed_orders = 0
+
+        for key in user_keys:
+            user_data = redis_client.hgetall(key)
+            user_id = key.decode("utf-8").split(":")[-1]
+
+            order_count = int(user_data.get(b"order_count", 0))
+            total_spend = float(user_data.get(b"total_spend", 0.0))
+            failed_order_count = int(user_data.get(b"failed_order_count", 0))
+
+            total_orders += order_count
+            total_revenue += total_spend
+            total_failed_orders += failed_order_count
+
+            user_stats.append(
+                {
+                    "user_id": user_id,
+                    "order_count": order_count,
+                    "total_spend": round(total_spend, 2),
+                    "failed_order_count": failed_order_count,
+                }
+            )
+
+        user_stats.sort(key=lambda x: x["total_spend"], reverse=True)
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "month": month,
+                "total_orders": total_orders,
+                "total_revenue": round(total_revenue, 2),
+                "failed_orders": total_failed_orders,
+                "user_stats": user_stats,
             },
         )
     except Exception as e:

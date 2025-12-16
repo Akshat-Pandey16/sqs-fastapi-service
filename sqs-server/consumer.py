@@ -67,17 +67,22 @@ class Consumer:
             order_data["order_value"] = calculated_order_value
         return True
 
-    def handle_userwise_stats(self, order_data: dict):
+    def handle_userwise_stats(self, order_data: dict, is_failed: bool = False):
         try:
             user_id = order_data.get("user_id")
             order_value = round(float(order_data.get("order_value", 0)), 2)
             redis_key = f"user:{user_id}"
 
-            self.redis_client.hincrby(redis_key, "order_count", 1)
-            self.redis_client.hincrbyfloat(redis_key, "total_spend", order_value)
+            if is_failed:
+                self.redis_client.hincrby(redis_key, "failed_order_count", 1)
+            else:
+                self.redis_client.hincrby(redis_key, "order_count", 1)
+                self.redis_client.hincrbyfloat(redis_key, "total_spend", order_value)
 
-            self.redis_client.zincrby("user_ranking:total_spend", order_value, user_id)
-            self.redis_client.zincrby("user_ranking:total_order_count", 1, user_id)
+                self.redis_client.zincrby(
+                    "user_ranking:total_spend", order_value, user_id
+                )
+                self.redis_client.zincrby("user_ranking:total_order_count", 1, user_id)
 
             return True
 
@@ -85,33 +90,76 @@ class Consumer:
             write_log(f"[REDIS ERROR] Failed to update user stats: {e}")
             return False
 
-    def handle_global_stats(self, order_data: dict):
+    def handle_global_stats(self, order_data: dict, is_failed: bool = False):
         try:
             global_hash_key = "global:stats"
             order_value = round(float(order_data.get("order_value", 0)), 2)
 
-            self.redis_client.hincrby(global_hash_key, "total_orders", 1)
-            self.redis_client.hincrbyfloat(
-                global_hash_key, "total_revenue", order_value
-            )
+            if is_failed:
+                self.redis_client.hincrby(global_hash_key, "failed_orders", 1)
+            else:
+                self.redis_client.hincrby(global_hash_key, "total_orders", 1)
+                self.redis_client.hincrbyfloat(
+                    global_hash_key, "total_revenue", order_value
+                )
 
             return True
         except Exception as e:
             write_log(f"[REDIS ERROR] Failed to update global stats: {e}")
             return False
 
-    def handle_redis_db_insertion(self, order_data: dict):
+    def handle_monthly_aggregation(self, order_data: dict, is_failed: bool = False):
         try:
-            userwise_stats_result = self.handle_userwise_stats(order_data)
+            from datetime import datetime
+
+            user_id = order_data.get("user_id")
+            order_value = round(float(order_data.get("order_value", 0)), 2)
+            order_timestamp = order_data.get("order_timestamp")
+
+            dt = datetime.strptime(order_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+            month_key = dt.strftime("%Y-%m")
+
+            monthly_key = f"monthly:{month_key}"
+
+            if is_failed:
+                self.redis_client.hincrby(
+                    f"{monthly_key}:user:{user_id}", "failed_order_count", 1
+                )
+            else:
+                self.redis_client.hincrbyfloat(
+                    f"{monthly_key}:user:{user_id}", "total_spend", order_value
+                )
+                self.redis_client.hincrby(
+                    f"{monthly_key}:user:{user_id}", "order_count", 1
+                )
+
+            self.redis_client.sadd("months:list", month_key)
+
+            return True
+
+        except Exception as e:
+            write_log(f"[REDIS ERROR] Failed to update monthly aggregation: {e}")
+            return False
+
+    def handle_redis_db_insertion(self, order_data: dict, is_failed: bool = False):
+        try:
+            userwise_stats_result = self.handle_userwise_stats(order_data, is_failed)
             if not userwise_stats_result:
                 write_log(
                     f"[REDIS ERROR] Failed to update user stats for user {order_data.get('user_id')}"
                 )
                 return False
 
-            global_stats_result = self.handle_global_stats(order_data)
+            global_stats_result = self.handle_global_stats(order_data, is_failed)
             if not global_stats_result:
                 write_log("[REDIS ERROR] Failed to update global stats")
+                return False
+
+            monthly_aggregation_result = self.handle_monthly_aggregation(
+                order_data, is_failed
+            )
+            if not monthly_aggregation_result:
+                write_log("[REDIS ERROR] Failed to update monthly aggregation")
                 return False
 
             return True
@@ -130,15 +178,18 @@ class Consumer:
                 validation_result = self.validate_order_data(order_data)
                 if not validation_result:
                     write_log(
-                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Validation failed, deleting invalid message"
+                        f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Validation failed, tracking as failed order"
                     )
+                    self.handle_redis_db_insertion(order_data, is_failed=True)
                     self.sqs.delete_message(
                         QueueUrl=self.queue_url,
                         ReceiptHandle=message["ReceiptHandle"],
                     )
                     continue
 
-                redis_result = self.handle_redis_db_insertion(order_data)
+                redis_result = self.handle_redis_db_insertion(
+                    order_data, is_failed=False
+                )
                 if not redis_result:
                     write_log(
                         f"[USER: {order_data.get('user_id')}] [ORDER: {order_data.get('order_id')}] Redis insertion failed, will retry"
