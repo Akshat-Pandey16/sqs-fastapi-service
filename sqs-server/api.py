@@ -18,6 +18,10 @@ async def api_info():
             "endpoints": {
                 "produce": "POST /produce - Send random orders to queue",
                 "consumer_logs": "GET /consumer_logs - Get latest 100 consumer logs",
+                "delete_redis_db": "DELETE /delete_redis_db - Delete Redis database",
+                "users": "GET /users - Get user ranking",
+                "users/{user_id}": "GET /users/{user_id} - Get user stats",
+                "global_stats": "GET /global_stats - Get global stats",
             },
         },
     )
@@ -61,8 +65,8 @@ async def get_consumer_logs():
     )
 
 
-@api_router.get("/clear_redis_db")
-async def clear_redis_db():
+@api_router.delete("/clear_redis_db")
+async def delete_redis_db():
     try:
         consumer.get_redis_client().flushdb()
         return JSONResponse(
@@ -82,10 +86,10 @@ async def get_user_ranking(limit: int = 10):
         redis_client = consumer.get_redis_client()
 
         spend_results = redis_client.zrevrange(
-            "user_leader:total_spend", 0, limit - 1, withscores=True
+            "user_ranking:total_spend", 0, limit - 1, withscores=True
         )
         orders_results = redis_client.zrevrange(
-            "user_leader:total_order_count", 0, limit - 1, withscores=True
+            "user_ranking:total_order_count", 0, limit - 1, withscores=True
         )
 
         by_spend = []
@@ -137,7 +141,6 @@ async def get_user_stats(user_id: str):
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
                 "user_id": user_id,
                 "order_count": int(order_count) if order_count else 0,
                 "total_spend": float(total_spend) if total_spend else 0.0,

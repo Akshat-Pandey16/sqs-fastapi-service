@@ -76,8 +76,8 @@ class Consumer:
             self.redis_client.hincrby(redis_key, "order_count", 1)
             self.redis_client.hincrbyfloat(redis_key, "total_spend", order_value)
 
-            self.redis_client.zincrby("user_leader:total_spend", order_value, user_id)
-            self.redis_client.zincrby("user_leader:total_order_count", 1, user_id)
+            self.redis_client.zincrby("user_ranking:total_spend", order_value, user_id)
+            self.redis_client.zincrby("user_ranking:total_order_count", 1, user_id)
 
             return True
 
