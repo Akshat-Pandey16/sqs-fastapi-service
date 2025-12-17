@@ -2,6 +2,8 @@
 
 A microservice application that simulates an order processing system using AWS SQS (via LocalStack), Redis for analytics storage, and FastAPI for REST API endpoints. The system processes orders from an SQS queue, validates them, and stores aggregated statistics in Redis.
 
+**The swagger documentation for all apis is present in <host_ip>:9000/docs**
+
 ## Features
 
 - **Order Production**: Generate and send random orders to SQS queue
