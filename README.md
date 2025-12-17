@@ -64,6 +64,8 @@ docker-compose down
 
 ## System Architecture & Flow
 
+![Data Flow Diagram](data_flow.png)
+
 ### Components
 
 1. **Producer** (`producer.py`)
