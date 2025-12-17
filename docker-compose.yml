@@ -21,7 +21,7 @@ services:
       dockerfile: sqs-server/Dockerfile
     container_name: sqs-server
     ports:
-      - "8000:8000"
+      - "9000:9000"
     volumes:
       - ./sqs-server:/app
     environment:
@@ -37,7 +37,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - FASTAPI_PORT=8000
+      - FASTAPI_PORT=9000
     depends_on:
       - localstack
       - redis

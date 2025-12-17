@@ -35,7 +35,6 @@ async def produce_orders(request: ProduceRequest):
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
                 "message": f"Successfully sent {request.count} orders to queue",
                 "orders": sent_orders,
             },
@@ -43,7 +42,7 @@ async def produce_orders(request: ProduceRequest):
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"status": 500, "error": str(e)},
+            content={"error": str(e)},
         )
 
 
@@ -53,7 +52,6 @@ async def get_consumer_logs():
     return JSONResponse(
         status_code=200,
         content={
-            "status": 200,
             "total_logs": len(logs),
             "logs": logs,
         },
@@ -66,12 +64,12 @@ async def delete_redis_db():
         consumer.get_redis_client().flushdb()
         return JSONResponse(
             status_code=200,
-            content={"status": 200, "message": "Redis database cleared"},
+            content={"message": "Redis database cleared"},
         )
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"status": 500, "error": str(e)},
+            content={"error": str(e)},
         )
 
 
@@ -104,13 +102,12 @@ async def get_user_ranking(limit: int = 10):
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
                 "total_spend_ranking": by_spend,
                 "total_order_count_ranking": by_orders,
             },
         )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @api_router.get("/users/{user_id}/stats")
@@ -122,7 +119,7 @@ async def get_user_stats(user_id: str):
         if not user_stats:
             return JSONResponse(
                 status_code=404,
-                content={"status": 404, "error": f"User {user_id} not found"},
+                content={"error": f"User {user_id} not found"},
             )
 
         order_count = user_stats.get(b"order_count")
@@ -141,7 +138,7 @@ async def get_user_stats(user_id: str):
             },
         )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @api_router.get("/stats/global")
@@ -157,14 +154,13 @@ async def get_global_stats():
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
                 "total_orders": int(total_orders) if total_orders else 0,
                 "total_revenue": float(total_revenue) if total_revenue else 0.0,
                 "failed_orders": int(failed_orders) if failed_orders else 0,
             },
         )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @api_router.get("/stats/monthly/{month}")
@@ -175,7 +171,7 @@ async def get_monthly_stats(month: str):
         if not redis_client.sismember("months:list", month):
             return JSONResponse(
                 status_code=404,
-                content={"status": 404, "error": f"No data found for month {month}"},
+                content={"error": f"No data found for month {month}"},
             )
 
         pattern = f"monthly:{month}:user:*"
@@ -212,7 +208,6 @@ async def get_monthly_stats(month: str):
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
                 "month": month,
                 "total_orders": total_orders,
                 "total_revenue": round(total_revenue, 2),
@@ -221,4 +216,4 @@ async def get_monthly_stats(month: str):
             },
         )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": 500, "error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
