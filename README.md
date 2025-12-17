@@ -89,7 +89,7 @@ docker-compose down
    - Monthly aggregations per user
    - User rankings (by spend and order count)
 
-### System Flow
+### Brief System Flow
 
 ```
 ┌─────────────┐
@@ -359,3 +359,83 @@ curl http://localhost:9000/users/<user_id>/stats
 ```bash
 curl http://localhost:9000/stats/monthly/<month>
 ```
+
+## Design Decisions & Architecture Rationale
+
+### Why These Approaches Were Chosen
+
+#### 1. **Background Consumer Process**
+- **Non-blocking**: FastAPI API remains responsive while orders are processed asynchronously
+- **Separation of Concerns**: API layer handles requests while consumer handles message processing
+- **Fault Isolation**: Consumer failures don't crash the API server
+- **Resource Management**: Consumer runs in separate process, allowing independent resource allocation
+
+#### 4. **In-Process Consumer vs Separate Service**
+- **Current Approach**: Consumer runs as a multiprocessing Process within the FastAPI application
+  - **Pros**: Simple deployment, shared configuration, easier development
+  - **Cons**: Coupled lifecycle, single point of failure, limited horizontal scaling
+- **Why This Works**: Suitable for moderate workloads and simplifies initial development
+
+#### 5. **Validation Before Storage**
+- **Data Integrity**: Ensures only valid orders affect analytics and rankings
+- **Error Tracking**: Failed orders are tracked separately, enabling monitoring of data quality issues
+- **Cost Efficiency**: Prevents invalid data from consuming storage and processing resources
+
+#### 6. **Multiple Redis Data Structures**
+- **Hashes for User Stats**: Efficient key-value storage for user-specific metrics
+- **Sorted Sets for Rankings**: Automatic ordering and efficient top-N queries
+- **Sets for Month Tracking**: Fast membership checks for available months
+- **Separate Keys for Different Aggregations**: Enables independent querying and caching strategies
+
+## Scalability Considerations
+
+### Current System Limitations
+
+1. **Single Consumer Process**: Only one consumer processes messages, limiting throughput
+2. **Single Redis Instance**: No replication or sharding, potential bottleneck at high loads
+3. **In-Process Consumer**: Consumer lifecycle tied to API server, limits independent scaling
+4. **LocalStack**: Development tool, not suitable for production workloads
+
+### Scaling Strategies
+
+#### 1. **Horizontal Scaling - API Layer**
+```
+Load Balancer
+    ├── FastAPI Instance 1 (Port 9000)
+    ├── FastAPI Instance 2 (Port 9001)
+    └── FastAPI Instance 3 (Port 9002)
+```
+- **Approach**: Deploy multiple FastAPI instances behind a load balancer
+- **Benefit**: Distributes API request load across multiple servers
+- **Consideration**: Redis remains shared, ensuring consistent analytics across instances
+
+#### 2. **Horizontal Scaling - Consumer Layer**
+```
+SQS Queue
+    ├── Consumer Service 1 (Processes messages)
+    ├── Consumer Service 2 (Processes messages)
+    └── Consumer Service 3 (Processes messages)
+```
+- **Approach**: Deploy multiple independent consumer services
+- **Benefit**: Parallel message processing increases throughput
+- **SQS Feature**: Multiple consumers can poll the same queue; SQS ensures message distribution
+
+
+#### 5. **Message Processing Optimization**
+- **Batch Processing**: Increase `SQS_MAX_NUMBER_OF_MESSAGES` for higher throughput
+- **Parallel Processing**: Use thread pool or async processing within consumer for batch items
+
+
+## Future Enhancements
+
+### 1. **Separate Consumer Service**
+**Current State**: Consumer runs as a process within FastAPI application
+
+**Enhancement**: Deploy consumer as independent microservice
+
+### 2. **Message Processing Enhancements**
+- **Async Processing**: Use asyncio for concurrent message processing within batches
+- **Priority Queues**: Separate queues for high-priority orders
+- **Retry Logic**: Exponential backoff for transient failures
+- **Circuit Breaker**: Prevent cascading failures when Redis is unavailable
+- **Rate Limiting**: Control processing rate to prevent overwhelming downstream systems
