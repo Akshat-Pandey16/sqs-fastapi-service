@@ -91,47 +91,6 @@ docker-compose down
    - Monthly aggregations per user
    - User rankings (by spend and order count)
 
-### Brief System Flow
-
-```
-┌─────────────┐
-│   FastAPI   │
-│    Server   │
-└──────┬──────┘
-       │
-       │ POST /produce
-       ▼
-┌─────────────┐
-│  Producer   │──────┐
-└─────────────┘      │
-                     │ Send Messages
-                     ▼
-              ┌─────────────┐
-              │   SQS Queue │
-              │ (LocalStack) │
-              └──────┬───────┘
-                     │
-                     │ Poll Messages
-                     ▼
-              ┌─────────────┐
-              │  Consumer   │
-              │  (Process)  │
-              └──────┬───────┘
-                     │
-                     │ Store Analytics
-                     ▼
-              ┌─────────────┐
-              │    Redis    │
-              └──────┬───────┘
-                     │
-                     │ Query Data
-                     ▼
-              ┌─────────────┐
-              │   FastAPI   │
-              │  Endpoints  │
-              └─────────────┘
-```
-
 ### Detailed Flow
 
 1. **Order Production**
