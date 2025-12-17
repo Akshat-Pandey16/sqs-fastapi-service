@@ -38,12 +38,12 @@ class Producer:
                 user_id = f"INVALID{randint(1000, 1005)}"
 
         products = [
-            {"id": "P001", "name": "Laptop", "price": (500, 1500)},
-            {"id": "P002", "name": "Mouse", "price": (10, 50)},
-            {"id": "P003", "name": "Keyboard", "price": (30, 150)},
-            {"id": "P004", "name": "Monitor", "price": (200, 800)},
-            {"id": "P005", "name": "Headphones", "price": (50, 300)},
-            {"id": "P006", "name": "Webcam", "price": (40, 200)},
+            {"id": "P001", "price": (500, 1500)},
+            {"id": "P002", "price": (10, 50)},
+            {"id": "P003", "price": (30, 150)},
+            {"id": "P004", "price": (200, 800)},
+            {"id": "P005", "price": (50, 300)},
+            {"id": "P006", "price": (40, 200)},
         ]
 
         num_items = randint(1, 100)
