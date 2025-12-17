@@ -64,7 +64,7 @@ docker-compose down
 
 ## System Architecture & Flow
 
-![Data Flow Diagram](data_flow.png)
+![Data Flow Diagram](data_flow.svg)
 
 ### Components
 
