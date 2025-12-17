@@ -439,3 +439,4 @@ SQS Queue
 - **Retry Logic**: Exponential backoff for transient failures
 - **Circuit Breaker**: Prevent cascading failures when Redis is unavailable
 - **Rate Limiting**: Control processing rate to prevent overwhelming downstream systems
+- **Batch Processing**: Batch messages till `SQS_WAIT_TIME_SECONDS`, then process in batch using threadpool for concurrent processing.
