@@ -21,7 +21,7 @@ A microservice application that simulates an order processing system using AWS S
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone [<repository-url>](https://github.com/Akshat-Pandey16/sqs-fastapi-service)
 cd sqs-fastapi-service
 ```
 
